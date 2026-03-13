@@ -76,14 +76,17 @@ export default function CierrePage() {
   const nPeakAmount = Number(peakAmount || 0);
   const nCountedCash = Number(countedCash || 0);
 
+  const cashSales = useMemo(() => {
+    return nTotalTpv - nTotalCard;
+  }, [nTotalTpv, nTotalCard]);
+
   const expectedCash = useMemo(() => {
-    const cashSales = nTotalTpv - nTotalCard;
-    return cashSales - nWithdrawalsAmount + nPeakAmount;
-  }, [nTotalTpv, nTotalCard, nWithdrawalsAmount, nPeakAmount]);
+    return nPeakAmount;
+  }, [nPeakAmount]);
 
   const differenceAmount = useMemo(() => {
-    return nCountedCash - expectedCash;
-  }, [nCountedCash, expectedCash]);
+    return nCountedCash - nPeakAmount;
+  }, [nCountedCash, nPeakAmount]);
 
   const resetForm = () => {
     setTotalTpv("");
@@ -141,6 +144,12 @@ export default function CierrePage() {
       }
     }
 
+    if (!Number.isInteger(nRegisterNumber) || nRegisterNumber <= 0) {
+      setMsg("La caja debe ser válida");
+      setMsgType("error");
+      return;
+    }
+
     if (nTotalCard > nTotalTpv) {
       setMsg("La tarjeta no puede ser mayor que el total TPV");
       setMsgType("error");
@@ -149,7 +158,6 @@ export default function CierrePage() {
 
     setLoading(true);
 
-    const cashSales = nTotalTpv - nTotalCard;
     const status = differenceAmount === 0 ? "ok" : "alert";
 
     const { data, error } = await supabase
@@ -210,7 +218,9 @@ export default function CierrePage() {
           related_type: "daily_closing",
           related_id: String(data.id),
           level,
-          message: `Descuadre de ${differenceAmount.toFixed(2)} € en cierre del ${today} · caja ${nRegisterNumber}`,
+          message: `Descuadre de ${differenceAmount.toFixed(
+            2
+          )} € en cierre del ${today} · caja ${nRegisterNumber}`,
           resolved: false,
         },
       ]);
@@ -267,10 +277,7 @@ export default function CierrePage() {
             onChange={(e) => setRegisterNumber(e.target.value)}
           >
             {registers.map((register) => (
-              <option
-                key={register.id}
-                value={register.register_number}
-              >
+              <option key={register.id} value={register.register_number}>
                 Caja {register.register_number}
               </option>
             ))}
