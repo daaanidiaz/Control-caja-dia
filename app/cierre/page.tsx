@@ -76,10 +76,6 @@ export default function CierrePage() {
   const nPeakAmount = Number(peakAmount || 0);
   const nCountedCash = Number(countedCash || 0);
 
-  // Fórmula correcta:
-  // efectivo_ventas = TPV - tarjeta
-  // esperado = efectivo_ventas - retiradas
-  // diferencia = contado - esperado
   const cashSales = useMemo(() => {
     return nTotalTpv - nTotalCard;
   }, [nTotalTpv, nTotalCard]);
@@ -293,6 +289,15 @@ export default function CierrePage() {
   return (
     <main className="min-h-screen bg-neutral-100 p-6">
       <div className="mx-auto max-w-4xl space-y-6">
+        <div className="rounded-3xl bg-yellow-200 p-6 shadow">
+          <h1 className="text-5xl font-black text-red-700">
+            DEBUG CIERRE NUEVO
+          </h1>
+          <p className="mt-2 text-2xl font-bold text-red-700">
+            Si ves esto, la web sí está usando el archivo correcto.
+          </p>
+        </div>
+
         <div className="rounded-3xl bg-white p-6 shadow">
           <h1 className="text-4xl font-black">Cierre diario</h1>
           <p className="mt-2 text-xl text-neutral-700">
@@ -349,31 +354,28 @@ export default function CierrePage() {
             onChange={(e) => setCountedCash(e.target.value)}
           />
 
+          <div className="rounded-2xl border border-blue-300 bg-blue-50 p-4">
+            <p className="text-xl font-black text-blue-900">Prueba cálculo</p>
+            <p className="mt-2 text-lg text-blue-900">
+              Efectivo ventas = {nTotalTpv.toFixed(2)} - {nTotalCard.toFixed(2)} ={" "}
+              {cashSales.toFixed(2)} €
+            </p>
+            <p className="text-lg text-blue-900">
+              Esperado = {cashSales.toFixed(2)} - {nWithdrawalsAmount.toFixed(2)} ={" "}
+              {expectedCash.toFixed(2)} €
+            </p>
+            <p className="text-lg font-black text-blue-900">
+              Diferencia = {nCountedCash.toFixed(2)} - {expectedCash.toFixed(2)} ={" "}
+              {differenceAmount.toFixed(2)} €
+            </p>
+          </div>
+
           <textarea
             className="min-h-28 w-full rounded-2xl border border-neutral-300 px-4 py-4 text-2xl outline-none"
             placeholder="Observaciones (opcional)"
             value={notes}
             onChange={(e) => setNotes(e.target.value)}
           />
-
-          <div className="rounded-2xl border border-blue-200 bg-blue-50 p-4">
-            <p className="text-lg font-bold text-blue-900">Prueba cálculo</p>
-            <p className="mt-2 text-base text-blue-900">
-              Efectivo ventas = {nTotalTpv.toFixed(2)} - {nTotalCard.toFixed(2)} ={" "}
-              {cashSales.toFixed(2)} €
-            </p>
-            <p className="text-base text-blue-900">
-              Esperado = {cashSales.toFixed(2)} - {nWithdrawalsAmount.toFixed(2)} ={" "}
-              {expectedCash.toFixed(2)} €
-            </p>
-            <p className="text-base font-black text-blue-900">
-              Diferencia = {nCountedCash.toFixed(2)} - {expectedCash.toFixed(2)} ={" "}
-              {differenceAmount.toFixed(2)} €
-            </p>
-            <p className="mt-2 text-sm text-blue-700">
-              El pico se guarda como dato informativo, pero no entra en el cálculo.
-            </p>
-          </div>
 
           <button
             onClick={handleSave}
