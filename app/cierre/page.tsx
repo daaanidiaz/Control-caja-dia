@@ -235,19 +235,17 @@ export default function CierrePage() {
     }
 
     if (differenceAmount !== 0 && data) {
-      const level =
-        Math.abs(differenceAmount) >= 20
-          ? "high"
-          : Math.abs(differenceAmount) >= 10
-          ? "medium"
-          : "low";
-
       await supabase.from("alerts").insert([
         {
           store_id: user.store_id,
           related_type: "daily_closing",
           related_id: String(data.id),
-          level,
+          level:
+            Math.abs(differenceAmount) >= 20
+              ? "high"
+              : Math.abs(differenceAmount) >= 10
+              ? "medium"
+              : "low",
           message: `Descuadre de ${differenceAmount.toFixed(
             2
           )} € en cierre del ${today} · caja ${nRegisterNumber}`,
@@ -278,9 +276,6 @@ export default function CierrePage() {
           <p className="text-2xl font-bold text-red-600">
             El dueño no puede hacer cierres desde esta pantalla.
           </p>
-          <p className="mt-4 text-xl text-neutral-700">
-            Cierra sesión y entra con un usuario de tienda.
-          </p>
         </div>
       </main>
     );
@@ -289,12 +284,16 @@ export default function CierrePage() {
   return (
     <main className="min-h-screen bg-neutral-100 p-6">
       <div className="mx-auto max-w-4xl space-y-6">
-        <div className="rounded-3xl bg-yellow-200 p-6 shadow">
-          <h1 className="text-5xl font-black text-red-700">
-            DEBUG CIERRE NUEVO
-          </h1>
-          <p className="mt-2 text-2xl font-bold text-red-700">
-            Si ves esto, la web sí está usando el archivo correcto.
+        <div className="rounded-3xl bg-red-200 p-6 shadow">
+          <h1 className="text-5xl font-black text-black">DEBUG TOTAL</h1>
+          <p className="mt-2 text-2xl font-bold text-black">
+            DIFERENCIA EN VIVO: {differenceAmount.toFixed(2)} €
+          </p>
+          <p className="text-xl text-black">
+            ESPERADO EN VIVO: {expectedCash.toFixed(2)} €
+          </p>
+          <p className="text-xl text-black">
+            EFECTIVO VENTAS EN VIVO: {cashSales.toFixed(2)} €
           </p>
         </div>
 
@@ -353,22 +352,6 @@ export default function CierrePage() {
             value={countedCash}
             onChange={(e) => setCountedCash(e.target.value)}
           />
-
-          <div className="rounded-2xl border border-blue-300 bg-blue-50 p-4">
-            <p className="text-xl font-black text-blue-900">Prueba cálculo</p>
-            <p className="mt-2 text-lg text-blue-900">
-              Efectivo ventas = {nTotalTpv.toFixed(2)} - {nTotalCard.toFixed(2)} ={" "}
-              {cashSales.toFixed(2)} €
-            </p>
-            <p className="text-lg text-blue-900">
-              Esperado = {cashSales.toFixed(2)} - {nWithdrawalsAmount.toFixed(2)} ={" "}
-              {expectedCash.toFixed(2)} €
-            </p>
-            <p className="text-lg font-black text-blue-900">
-              Diferencia = {nCountedCash.toFixed(2)} - {expectedCash.toFixed(2)} ={" "}
-              {differenceAmount.toFixed(2)} €
-            </p>
-          </div>
 
           <textarea
             className="min-h-28 w-full rounded-2xl border border-neutral-300 px-4 py-4 text-2xl outline-none"
