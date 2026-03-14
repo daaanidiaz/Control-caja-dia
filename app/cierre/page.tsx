@@ -76,6 +76,10 @@ export default function CierrePage() {
   const nPeakAmount = Number(peakAmount || 0);
   const nCountedCash = Number(countedCash || 0);
 
+  // Fórmula correcta:
+  // efectivo_ventas = TPV - tarjeta
+  // esperado = efectivo_ventas - retiradas
+  // diferencia = contado - esperado
   const cashSales = useMemo(() => {
     return nTotalTpv - nTotalCard;
   }, [nTotalTpv, nTotalCard]);
@@ -242,7 +246,7 @@ export default function CierrePage() {
           ? "medium"
           : "low";
 
-      const { error: alertError } = await supabase.from("alerts").insert([
+      await supabase.from("alerts").insert([
         {
           store_id: user.store_id,
           related_type: "daily_closing",
@@ -254,10 +258,6 @@ export default function CierrePage() {
           resolved: false,
         },
       ]);
-
-      if (alertError) {
-        console.log("ERROR ALERTS:", alertError);
-      }
     }
 
     setLoading(false);
@@ -299,9 +299,6 @@ export default function CierrePage() {
             Usuario: {user.full_name} · Tienda: {user.store_id}
           </p>
           <p className="mt-2 text-xl text-neutral-700">Fecha: {today}</p>
-          <p className="text-base text-neutral-500">
-            La fecha y la hora se guardan automáticamente.
-          </p>
         </div>
 
         <div className="rounded-3xl bg-white p-6 shadow space-y-4">
@@ -358,6 +355,25 @@ export default function CierrePage() {
             value={notes}
             onChange={(e) => setNotes(e.target.value)}
           />
+
+          <div className="rounded-2xl border border-blue-200 bg-blue-50 p-4">
+            <p className="text-lg font-bold text-blue-900">Prueba cálculo</p>
+            <p className="mt-2 text-base text-blue-900">
+              Efectivo ventas = {nTotalTpv.toFixed(2)} - {nTotalCard.toFixed(2)} ={" "}
+              {cashSales.toFixed(2)} €
+            </p>
+            <p className="text-base text-blue-900">
+              Esperado = {cashSales.toFixed(2)} - {nWithdrawalsAmount.toFixed(2)} ={" "}
+              {expectedCash.toFixed(2)} €
+            </p>
+            <p className="text-base font-black text-blue-900">
+              Diferencia = {nCountedCash.toFixed(2)} - {expectedCash.toFixed(2)} ={" "}
+              {differenceAmount.toFixed(2)} €
+            </p>
+            <p className="mt-2 text-sm text-blue-700">
+              El pico se guarda como dato informativo, pero no entra en el cálculo.
+            </p>
+          </div>
 
           <button
             onClick={handleSave}
