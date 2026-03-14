@@ -53,14 +53,14 @@ export default function CierrePage() {
   }, []);
 
   const loadRegisters = async (storeId: number) => {
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from("store_registers")
       .select("*")
       .eq("store_id", storeId)
       .eq("active", true)
       .order("register_number", { ascending: true });
 
-    if (data) {
+    if (!error && data) {
       setRegisters(data);
 
       if (data.length > 0) {
@@ -81,14 +81,20 @@ export default function CierrePage() {
   }, [nTotalTpv, nTotalCard]);
 
   const expectedCash = useMemo(() => {
-    return nPeakAmount;
-  }, [nPeakAmount]);
+    return cashSales - nWithdrawalsAmount;
+  }, [cashSales, nWithdrawalsAmount]);
 
   const differenceAmount = useMemo(() => {
-    return nCountedCash - nPeakAmount;
-  }, [nCountedCash, nPeakAmount]);
+    return nCountedCash - expectedCash;
+  }, [nCountedCash, expectedCash]);
 
   const resetForm = () => {
+    if (registers.length > 0) {
+      setRegisterNumber(String(registers[0].register_number));
+    } else {
+      setRegisterNumber("");
+    }
+
     setTotalTpv("");
     setTotalCard("");
     setWithdrawalsAmount("");
@@ -117,6 +123,30 @@ export default function CierrePage() {
 
     if (!registerNumber) {
       setMsg("Debes elegir una caja");
+      setMsgType("error");
+      return;
+    }
+
+    if (totalTpv === "") {
+      setMsg("Debes rellenar el total TPV");
+      setMsgType("error");
+      return;
+    }
+
+    if (totalCard === "") {
+      setMsg("Debes rellenar el total tarjeta");
+      setMsgType("error");
+      return;
+    }
+
+    if (withdrawalsAmount === "") {
+      setMsg("Debes rellenar las retiradas");
+      setMsgType("error");
+      return;
+    }
+
+    if (peakAmount === "") {
+      setMsg("Debes rellenar el pico");
       setMsgType("error");
       return;
     }
@@ -212,7 +242,7 @@ export default function CierrePage() {
           ? "medium"
           : "low";
 
-      await supabase.from("alerts").insert([
+      const { error: alertError } = await supabase.from("alerts").insert([
         {
           store_id: user.store_id,
           related_type: "daily_closing",
@@ -224,6 +254,10 @@ export default function CierrePage() {
           resolved: false,
         },
       ]);
+
+      if (alertError) {
+        console.log("ERROR ALERTS:", alertError);
+      }
     }
 
     setLoading(false);
