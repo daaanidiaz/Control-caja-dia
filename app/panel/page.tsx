@@ -32,14 +32,6 @@ type ClosingRow = {
   status: string;
 };
 
-type AlertRow = {
-  id: number;
-  created_at: string;
-  store_id: number | null;
-  level: "low" | "medium" | "high";
-  message: string;
-};
-
 type QuickRecordRow = {
   id: number;
   created_at: string;
@@ -54,10 +46,18 @@ type QuickRecordRow = {
   envelope_photo_url: string | null;
 };
 
+type LiveAlertRow = {
+  id: string;
+  created_at: string;
+  store_id: number | null;
+  register_number: number | null;
+  level: "low" | "medium" | "high";
+  message: string;
+};
+
 export default function PanelPage() {
   const [user, setUser] = useState<SessionUser | null>(null);
   const [closings, setClosings] = useState<ClosingRow[]>([]);
-  const [alerts, setAlerts] = useState<AlertRow[]>([]);
   const [stores, setStores] = useState<StoreRow[]>([]);
   const [quickRecords, setQuickRecords] = useState<QuickRecordRow[]>([]);
   const [loading, setLoading] = useState(true);
@@ -100,11 +100,6 @@ export default function PanelPage() {
       .select("*")
       .order("created_at", { ascending: false });
 
-    const { data: alertsData } = await supabase
-      .from("alerts")
-      .select("*")
-      .order("created_at", { ascending: false });
-
     const { data: storesData } = await supabase
       .from("stores")
       .select("*")
@@ -116,7 +111,6 @@ export default function PanelPage() {
       .order("created_at", { ascending: false });
 
     if (closingsData) setClosings(closingsData);
-    if (alertsData) setAlerts(alertsData);
     if (storesData) setStores(storesData);
     if (quickRecordsData) setQuickRecords(quickRecordsData);
 
@@ -128,7 +122,7 @@ export default function PanelPage() {
     window.location.href = "/";
   };
 
-  const getAlertColor = (level: AlertRow["level"]) => {
+  const getAlertColor = (level: "low" | "medium" | "high") => {
     if (level === "high") return "bg-red-100 text-red-700";
     if (level === "medium") return "bg-yellow-100 text-yellow-700";
     return "bg-blue-100 text-blue-700";
@@ -159,6 +153,31 @@ export default function PanelPage() {
     return "Incidencia";
   };
 
+  const getLiveDifference = (closing: ClosingRow) => {
+    const totalTpv = Number(closing.total_tpv ?? 0);
+    const totalCard = Number(closing.total_card ?? 0);
+    const withdrawals = Number(closing.withdrawals_amount ?? 0);
+    const counted = Number(closing.counted_cash ?? 0);
+
+    const cashSales = totalTpv - totalCard;
+    const expectedCash = cashSales - withdrawals;
+    return counted - expectedCash;
+  };
+
+  const getLiveExpectedCash = (closing: ClosingRow) => {
+    const totalTpv = Number(closing.total_tpv ?? 0);
+    const totalCard = Number(closing.total_card ?? 0);
+    const withdrawals = Number(closing.withdrawals_amount ?? 0);
+
+    const cashSales = totalTpv - totalCard;
+    return cashSales - withdrawals;
+  };
+
+  const getLiveStatus = (closing: ClosingRow) => {
+    const difference = getLiveDifference(closing);
+    return Math.abs(difference) < 0.01 ? "ok" : "alert";
+  };
+
   const filteredClosings = useMemo(() => {
     return closings.filter((c) => {
       if (filterStore !== "all" && c.store_id !== Number(filterStore)) {
@@ -180,14 +199,51 @@ export default function PanelPage() {
     });
   }, [closings, filterStore, filterRegister, filterDate]);
 
-  const filteredAlerts = useMemo(() => {
-    return alerts.filter((a) => {
-      if (filterStore !== "all" && a.store_id !== Number(filterStore)) {
-        return false;
-      }
-      return true;
-    });
-  }, [alerts, filterStore]);
+  const liveAlerts = useMemo(() => {
+    const base = closings
+      .filter((c) => {
+        if (filterStore !== "all" && c.store_id !== Number(filterStore)) {
+          return false;
+        }
+
+        if (
+          filterRegister !== "all" &&
+          c.register_number !== Number(filterRegister)
+        ) {
+          return false;
+        }
+
+        if (filterDate && c.closing_date !== filterDate) {
+          return false;
+        }
+
+        return true;
+      })
+      .map((closing) => {
+        const liveDifference = getLiveDifference(closing);
+        const absDiff = Math.abs(liveDifference);
+
+        if (absDiff < 0.01) return null;
+
+        const level: "low" | "medium" | "high" =
+          absDiff >= 20 ? "high" : absDiff >= 10 ? "medium" : "low";
+
+        return {
+          id: `live-${closing.id}`,
+          created_at: closing.created_at,
+          store_id: closing.store_id,
+          register_number: closing.register_number,
+          level,
+          message: `Descuadre de ${liveDifference.toFixed(2)} € en cierre del ${closing.closing_date} · caja ${closing.register_number ?? "-"}`,
+        } as LiveAlertRow;
+      })
+      .filter(Boolean) as LiveAlertRow[];
+
+    return base.sort(
+      (a, b) =>
+        new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+    );
+  }, [closings, filterStore, filterRegister, filterDate]);
 
   const filteredQuickRecords = useMemo(() => {
     return quickRecords.filter((r) => {
@@ -307,14 +363,17 @@ export default function PanelPage() {
 
         <div className="rounded-3xl bg-white p-6 shadow">
           <h2 className="mb-4 text-3xl font-black">Alertas</h2>
+          <p className="mb-4 text-sm text-neutral-500">
+            Estas alertas se calculan en vivo con la fórmula correcta del cierre.
+          </p>
 
           {loading ? (
             <p className="text-xl font-bold">Cargando alertas...</p>
-          ) : filteredAlerts.length === 0 ? (
+          ) : liveAlerts.length === 0 ? (
             <p className="text-xl font-bold">No hay alertas</p>
           ) : (
             <div className="space-y-3">
-              {filteredAlerts.map((alert) => (
+              {liveAlerts.map((alert) => (
                 <div
                   key={alert.id}
                   className="rounded-2xl border border-neutral-200 p-4"
@@ -370,52 +429,62 @@ export default function PanelPage() {
                   <th className="p-3 whitespace-nowrap">Retiradas</th>
                   <th className="p-3 whitespace-nowrap">Pico</th>
                   <th className="p-3 whitespace-nowrap">Contado</th>
+                  <th className="p-3 whitespace-nowrap">Debería haber</th>
                   <th className="p-3 whitespace-nowrap">Diferencia</th>
                   <th className="p-3 whitespace-nowrap">Estado</th>
                 </tr>
               </thead>
               <tbody>
-                {filteredClosings.map((c) => (
-                  <tr key={c.id} className="border-b text-lg">
-                    <td className="p-3 whitespace-nowrap">{c.closing_date}</td>
-                    <td className="p-3 whitespace-nowrap">
-                      {formatDateTime(c.created_at)}
-                    </td>
-                    <td className="p-3 whitespace-nowrap">
-                      {getStoreName(c.store_id)}
-                    </td>
-                    <td className="p-3 whitespace-nowrap">
-                      {c.register_number ?? "-"}
-                    </td>
-                    <td className="p-3 whitespace-nowrap">
-                      {Number(c.total_tpv ?? 0).toFixed(2)} €
-                    </td>
-                    <td className="p-3 whitespace-nowrap">
-                      {Number(c.total_card ?? 0).toFixed(2)} €
-                    </td>
-                    <td className="p-3 whitespace-nowrap">
-                      {Number(c.withdrawals_amount ?? 0).toFixed(2)} €
-                    </td>
-                    <td className="p-3 whitespace-nowrap">
-                      {Number(c.peak_amount ?? 0).toFixed(2)} €
-                    </td>
-                    <td className="p-3 whitespace-nowrap">
-                      {Number(c.counted_cash).toFixed(2)} €
-                    </td>
-                    <td
-                      className={`p-3 whitespace-nowrap font-bold ${
-                        Number(c.difference_amount) === 0
-                          ? "text-green-600"
-                          : "text-red-600"
-                      }`}
-                    >
-                      {Number(c.difference_amount).toFixed(2)} €
-                    </td>
-                    <td className="p-3 whitespace-nowrap">
-                      {c.status === "ok" ? "OK" : "ALERTA"}
-                    </td>
-                  </tr>
-                ))}
+                {filteredClosings.map((c) => {
+                  const liveDifference = getLiveDifference(c);
+                  const liveExpectedCash = getLiveExpectedCash(c);
+                  const liveStatus = getLiveStatus(c);
+
+                  return (
+                    <tr key={c.id} className="border-b text-lg">
+                      <td className="p-3 whitespace-nowrap">{c.closing_date}</td>
+                      <td className="p-3 whitespace-nowrap">
+                        {formatDateTime(c.created_at)}
+                      </td>
+                      <td className="p-3 whitespace-nowrap">
+                        {getStoreName(c.store_id)}
+                      </td>
+                      <td className="p-3 whitespace-nowrap">
+                        {c.register_number ?? "-"}
+                      </td>
+                      <td className="p-3 whitespace-nowrap">
+                        {Number(c.total_tpv ?? 0).toFixed(2)} €
+                      </td>
+                      <td className="p-3 whitespace-nowrap">
+                        {Number(c.total_card ?? 0).toFixed(2)} €
+                      </td>
+                      <td className="p-3 whitespace-nowrap">
+                        {Number(c.withdrawals_amount ?? 0).toFixed(2)} €
+                      </td>
+                      <td className="p-3 whitespace-nowrap">
+                        {Number(c.peak_amount ?? 0).toFixed(2)} €
+                      </td>
+                      <td className="p-3 whitespace-nowrap">
+                        {Number(c.counted_cash).toFixed(2)} €
+                      </td>
+                      <td className="p-3 whitespace-nowrap">
+                        {Number(liveExpectedCash).toFixed(2)} €
+                      </td>
+                      <td
+                        className={`p-3 whitespace-nowrap font-bold ${
+                          Math.abs(Number(liveDifference)) < 0.01
+                            ? "text-green-600"
+                            : "text-red-600"
+                        }`}
+                      >
+                        {Number(liveDifference).toFixed(2)} €
+                      </td>
+                      <td className="p-3 whitespace-nowrap">
+                        {liveStatus === "ok" ? "OK" : "ALERTA"}
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           )}
