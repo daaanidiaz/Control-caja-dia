@@ -30,6 +30,8 @@ type ClosingRow = {
   counted_cash: number;
   difference_amount: number;
   status: string;
+  edit_count?: number;
+  last_edited_at?: string | null;
 };
 
 type QuickRecordRow = {
@@ -417,7 +419,7 @@ export default function PanelPage() {
           ) : filteredClosings.length === 0 ? (
             <p className="text-xl font-bold">No hay cierres registrados</p>
           ) : (
-            <table className="w-full min-w-[1200px] text-left">
+            <table className="w-full min-w-[1400px] text-left">
               <thead>
                 <tr className="border-b text-xl font-bold">
                   <th className="p-3 whitespace-nowrap">Fecha cierre</th>
@@ -432,6 +434,8 @@ export default function PanelPage() {
                   <th className="p-3 whitespace-nowrap">Debería haber</th>
                   <th className="p-3 whitespace-nowrap">Diferencia</th>
                   <th className="p-3 whitespace-nowrap">Estado</th>
+                  <th className="p-3 whitespace-nowrap">Modificado</th>
+                  <th className="p-3 whitespace-nowrap">Última modificación</th>
                 </tr>
               </thead>
               <tbody>
@@ -481,6 +485,12 @@ export default function PanelPage() {
                       </td>
                       <td className="p-3 whitespace-nowrap">
                         {liveStatus === "ok" ? "OK" : "ALERTA"}
+                      </td>
+                      <td className="p-3 whitespace-nowrap">
+                        {(c.edit_count ?? 0) > 0 ? "Sí" : "No"}
+                      </td>
+                      <td className="p-3 whitespace-nowrap">
+                        {c.last_edited_at ? formatDateTime(c.last_edited_at) : "-"}
                       </td>
                     </tr>
                   );

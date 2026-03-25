@@ -18,6 +18,20 @@ type StoreRegisterRow = {
   active: boolean;
 };
 
+type ExistingClosingRow = {
+  id: number;
+  edit_count: number;
+  store_id: number;
+  register_number: number | null;
+  closing_date: string;
+  total_tpv?: number;
+  total_card?: number;
+  withdrawals_amount?: number;
+  peak_amount?: number;
+  counted_cash?: number;
+  notes?: string | null;
+};
+
 export default function CierrePage() {
   const [user, setUser] = useState<SessionUser | null>(null);
   const [registers, setRegisters] = useState<StoreRegisterRow[]>([]);
@@ -35,6 +49,7 @@ export default function CierrePage() {
   const [msg, setMsg] = useState("");
   const [msgType, setMsgType] = useState<"success" | "error" | "">("");
   const [loading, setLoading] = useState(false);
+  const [existingClosing, setExistingClosing] = useState<ExistingClosingRow | null>(null);
 
   useEffect(() => {
     const savedUser = localStorage.getItem("ccdia_user");
@@ -52,6 +67,11 @@ export default function CierrePage() {
     }
   }, []);
 
+  useEffect(() => {
+    if (!user?.store_id || !registerNumber) return;
+    checkExistingClosing(user.store_id, Number(registerNumber), today);
+  }, [user, registerNumber, today]);
+
   const loadRegisters = async (storeId: number) => {
     const { data, error } = await supabase
       .from("store_registers")
@@ -65,6 +85,40 @@ export default function CierrePage() {
       if (data.length > 0) {
         setRegisterNumber(String(data[0].register_number));
       }
+    }
+  };
+
+  const checkExistingClosing = async (
+    storeId: number,
+    registerNum: number,
+    closingDate: string
+  ) => {
+    const { data } = await supabase
+      .from("daily_closings")
+      .select(
+        "id, edit_count, store_id, register_number, closing_date, total_tpv, total_card, withdrawals_amount, peak_amount, counted_cash, notes"
+      )
+      .eq("store_id", storeId)
+      .eq("register_number", registerNum)
+      .eq("closing_date", closingDate)
+      .maybeSingle();
+
+    setExistingClosing(data ?? null);
+
+    if (data) {
+      setTotalTpv(String(data.total_tpv ?? ""));
+      setTotalCard(String(data.total_card ?? ""));
+      setWithdrawalsAmount(String(data.withdrawals_amount ?? ""));
+      setPeakAmount(String(data.peak_amount ?? ""));
+      setCountedCash(String(data.counted_cash ?? ""));
+      setNotes(data.notes ?? "");
+    } else {
+      setTotalTpv("");
+      setTotalCard("");
+      setWithdrawalsAmount("");
+      setPeakAmount("");
+      setCountedCash("");
+      setNotes("");
     }
   };
 
@@ -87,10 +141,7 @@ export default function CierrePage() {
     return nCountedCash - expectedCash;
   }, [nCountedCash, expectedCash]);
 
-  const resetForm = () => {
-    if (registers.length > 0) {
-      setRegisterNumber(String(registers[0].register_number));
-    }
+  const clearForm = () => {
     setTotalTpv("");
     setTotalCard("");
     setWithdrawalsAmount("");
@@ -99,17 +150,7 @@ export default function CierrePage() {
     setNotes("");
   };
 
-  const handleSave = async () => {
-    if (!user) return;
-    setMsg("");
-    setMsgType("");
-
-    if (user.role === "owner") {
-      setMsg("El dueño no puede hacer cierres desde esta pantalla");
-      setMsgType("error");
-      return;
-    }
-
+  const validateFields = () => {
     const fields = [
       { val: registerNumber, name: "caja" },
       { val: totalTpv, name: "total TPV" },
@@ -123,25 +164,83 @@ export default function CierrePage() {
       if (field.val === "") {
         setMsg(`Debes rellenar el campo: ${field.name}`);
         setMsgType("error");
-        return;
+        return false;
       }
     }
+
+    return true;
+  };
+
+  const handleSave = async () => {
+    if (!user) return;
+
+    setMsg("");
+    setMsgType("");
+
+    if (user.role === "owner") {
+      setMsg("El dueño no puede hacer cierres desde esta pantalla");
+      setMsgType("error");
+      return;
+    }
+
+    if (!validateFields()) return;
 
     setLoading(true);
 
     const status = Math.abs(differenceAmount) < 0.01 ? "ok" : "alert";
 
-    const { error } = await supabase.from("daily_closings").insert([
-      {
-        closing_date: today,
-        store_id: user.store_id,
-        user_id: user.id,
-        register_number: nRegisterNumber,
-        opening_cash: 0,
+    if (!existingClosing) {
+      const { error } = await supabase.from("daily_closings").insert([
+        {
+          closing_date: today,
+          store_id: user.store_id,
+          user_id: user.id,
+          register_number: nRegisterNumber,
+          opening_cash: 0,
+          cash_sales: cashSales,
+          card_sales: nTotalCard,
+          returns_amount: 0,
+          expenses_amount: 0,
+          withdrawals_amount: nWithdrawalsAmount,
+          expected_cash: expectedCash,
+          counted_cash: nCountedCash,
+          difference_amount: differenceAmount,
+          total_tpv: nTotalTpv,
+          total_card: nTotalCard,
+          peak_amount: nPeakAmount,
+          notes: notes.trim() || null,
+          status,
+          edit_count: 0,
+        },
+      ]);
+
+      if (error) {
+        setLoading(false);
+        setMsg(`Error al guardar: ${error.message}`);
+        setMsgType("error");
+        return;
+      }
+
+      setLoading(false);
+      setMsg("Cierre guardado correctamente");
+      setMsgType("success");
+      clearForm();
+      await checkExistingClosing(user.store_id!, nRegisterNumber, today);
+      return;
+    }
+
+    if (existingClosing.edit_count >= 1) {
+      setLoading(false);
+      setMsg("Este cierre ya fue modificado una vez y no se puede volver a cambiar");
+      setMsgType("error");
+      return;
+    }
+
+    const { error } = await supabase
+      .from("daily_closings")
+      .update({
         cash_sales: cashSales,
         card_sales: nTotalCard,
-        returns_amount: 0,
-        expenses_amount: 0,
         withdrawals_amount: nWithdrawalsAmount,
         expected_cash: expectedCash,
         counted_cash: nCountedCash,
@@ -151,20 +250,23 @@ export default function CierrePage() {
         peak_amount: nPeakAmount,
         notes: notes.trim() || null,
         status,
-      },
-    ]);
+        edit_count: 1,
+        last_edited_at: new Date().toISOString(),
+        last_edited_by: user.id,
+      })
+      .eq("id", existingClosing.id);
 
     if (error) {
       setLoading(false);
-      setMsg(`Error al guardar: ${error.message}`);
+      setMsg(`Error al modificar: ${error.message}`);
       setMsgType("error");
       return;
     }
 
     setLoading(false);
-    setMsg("Cierre guardado correctamente");
+    setMsg("Cierre modificado correctamente. Ya no se podrá volver a editar.");
     setMsgType("success");
-    resetForm();
+    await checkExistingClosing(user.store_id!, nRegisterNumber, today);
   };
 
   if (!user) {
@@ -191,6 +293,14 @@ export default function CierrePage() {
               </option>
             ))}
           </select>
+
+          {existingClosing ? (
+            <div className="rounded-xl bg-yellow-100 p-4 text-lg font-bold text-yellow-800">
+              {existingClosing.edit_count === 0
+                ? "Ya existe un cierre hoy para esta caja. Puedes corregirlo una sola vez."
+                : "Este cierre ya fue corregido una vez. No se puede volver a modificar."}
+            </div>
+          ) : null}
 
           <input
             className="h-16 w-full rounded-2xl border px-4 text-2xl"
@@ -241,10 +351,14 @@ export default function CierrePage() {
 
           <button
             onClick={handleSave}
-            disabled={loading}
+            disabled={loading || (!!existingClosing && existingClosing.edit_count >= 1)}
             className="h-16 w-full rounded-2xl bg-black text-2xl font-black text-white hover:bg-neutral-800 transition-colors disabled:bg-neutral-400"
           >
-            {loading ? "Guardando..." : "Guardar cierre"}
+            {loading
+              ? "Guardando..."
+              : existingClosing
+              ? "Modificar cierre"
+              : "Guardar cierre"}
           </button>
 
           {msg && (
