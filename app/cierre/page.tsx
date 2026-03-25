@@ -297,7 +297,7 @@ export default function CierrePage() {
           {existingClosing ? (
             <div className="rounded-xl bg-yellow-100 p-4 text-lg font-bold text-yellow-800">
               {existingClosing.edit_count === 0
-                ? "Ya existe un cierre hoy para esta caja. Puedes corregirlo una sola vez."
+                ? "Cierre guardado con éxito. Puedes corregirlo una sola vez."
                 : "Este cierre ya fue corregido una vez. No se puede volver a modificar."}
             </div>
           ) : null}
