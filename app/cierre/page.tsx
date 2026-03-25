@@ -1,4 +1,3 @@
-// cambio debug
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
@@ -63,13 +62,13 @@ export default function CierrePage() {
 
     if (!error && data) {
       setRegisters(data);
-
       if (data.length > 0) {
         setRegisterNumber(String(data[0].register_number));
       }
     }
   };
 
+  // Conversión de strings a números para cálculos
   const nRegisterNumber = Number(registerNumber || 0);
   const nTotalTpv = Number(totalTpv || 0);
   const nTotalCard = Number(totalCard || 0);
@@ -77,25 +76,29 @@ export default function CierrePage() {
   const nPeakAmount = Number(peakAmount || 0);
   const nCountedCash = Number(countedCash || 0);
 
+  // --- LÓGICA DE CÁLCULO CORREGIDA ---
+  
+  // 1. Efectivo neto que ha entrado (Ventas totales menos lo pagado con tarjeta)
   const cashSales = useMemo(() => {
     return nTotalTpv - nTotalCard;
   }, [nTotalTpv, nTotalCard]);
 
+  // 2. Lo que DEBERÍA haber en el cajón (Ventas en efectivo menos lo que ya se ha retirado)
   const expectedCash = useMemo(() => {
     return cashSales - nWithdrawalsAmount;
   }, [cashSales, nWithdrawalsAmount]);
 
+  // 3. Diferencia: Lo que he contado físicamente menos lo que el sistema dice que hay
   const differenceAmount = useMemo(() => {
     return nCountedCash - expectedCash;
   }, [nCountedCash, expectedCash]);
 
+  // ----------------------------------
+
   const resetForm = () => {
     if (registers.length > 0) {
       setRegisterNumber(String(registers[0].register_number));
-    } else {
-      setRegisterNumber("");
     }
-
     setTotalTpv("");
     setTotalCard("");
     setWithdrawalsAmount("");
@@ -106,7 +109,6 @@ export default function CierrePage() {
 
   const handleSave = async () => {
     if (!user) return;
-
     setMsg("");
     setMsgType("");
 
@@ -116,53 +118,30 @@ export default function CierrePage() {
       return;
     }
 
-    if (!user.store_id) {
-      setMsg("Este usuario no tiene tienda asignada");
-      setMsgType("error");
-      return;
-    }
+    // Validaciones básicas
+    const fields = [
+      { val: registerNumber, name: "caja" },
+      { val: totalTpv, name: "total TPV" },
+      { val: totalCard, name: "total tarjeta" },
+      { val: withdrawalsAmount, name: "retiradas" },
+      { val: peakAmount, name: "pico" },
+      { val: countedCash, name: "efectivo contado" }
+    ];
 
-    if (!registerNumber) {
-      setMsg("Debes elegir una caja");
-      setMsgType("error");
-      return;
-    }
-
-    if (totalTpv === "") {
-      setMsg("Debes rellenar el total TPV");
-      setMsgType("error");
-      return;
-    }
-
-    if (totalCard === "") {
-      setMsg("Debes rellenar el total tarjeta");
-      setMsgType("error");
-      return;
-    }
-
-    if (withdrawalsAmount === "") {
-      setMsg("Debes rellenar las retiradas");
-      setMsgType("error");
-      return;
-    }
-
-    if (peakAmount === "") {
-      setMsg("Debes rellenar el pico");
-      setMsgType("error");
-      return;
-    }
-
-    if (countedCash === "") {
-      setMsg("Debes rellenar el efectivo contado");
-      setMsgType("error");
-      return;
+    for (const field of fields) {
+      if (field.val === "") {
+        setMsg(`Debes rellenar el campo: ${field.name}`);
+        setMsgType("error");
+        return;
+      }
     }
 
     setLoading(true);
 
-    const status = differenceAmount === 0 ? "ok" : "alert";
+    // Si la diferencia es menor a 1 céntimo, lo damos por bueno (evita errores de coma flotante)
+    const status = Math.abs(differenceAmount) < 0.01 ? "ok" : "alert";
 
-    const { data, error } = await supabase
+    const { error } = await supabase
       .from("daily_closings")
       .insert([
         {
@@ -185,9 +164,7 @@ export default function CierrePage() {
           notes: notes.trim() || null,
           status,
         },
-      ])
-      .select()
-      .single();
+      ]);
 
     if (error) {
       setLoading(false);
@@ -214,15 +191,29 @@ export default function CierrePage() {
     <main className="min-h-screen bg-neutral-100 p-6">
       <div className="mx-auto max-w-4xl space-y-6">
 
+        {/* Bloque de visualización de cálculos en tiempo real */}
         <div className="rounded-3xl bg-red-200 p-6 shadow">
-          <h1 className="text-4xl font-black">DEBUG TOTAL</h1>
-          <p className="text-xl">EFECTIVO VENTAS: {cashSales.toFixed(2)} €</p>
-          <p className="text-xl">ESPERADO: {expectedCash.toFixed(2)} €</p>
-          <p className="text-xl font-bold">DIFERENCIA: {differenceAmount.toFixed(2)} €</p>
+          <h1 className="text-4xl font-black">RESUMEN DE CAJA</h1>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-4">
+            <div>
+              <p className="text-sm uppercase font-bold text-red-800">Efectivo Ventas</p>
+              <p className="text-2xl font-black">{cashSales.toFixed(2)} €</p>
+            </div>
+            <div>
+              <p className="text-sm uppercase font-bold text-red-800">Debería haber (Esperado)</p>
+              <p className="text-2xl font-black">{expectedCash.toFixed(2)} €</p>
+            </div>
+            <div>
+              <p className="text-sm uppercase font-bold text-red-800">Diferencia Final</p>
+              <p className={`text-2xl font-black ${differenceAmount < 0 ? 'text-red-600' : 'text-green-700'}`}>
+                {differenceAmount.toFixed(2)} €
+              </p>
+            </div>
+          </div>
         </div>
 
         <div className="rounded-3xl bg-white p-6 shadow space-y-4">
-
+          <label className="block text-sm font-bold ml-1">Seleccionar Caja</label>
           <select
             className="h-16 w-full rounded-2xl border px-4 text-2xl"
             value={registerNumber}
@@ -237,6 +228,7 @@ export default function CierrePage() {
 
           <input
             className="h-16 w-full rounded-2xl border px-4 text-2xl"
+            type="number"
             placeholder="Total TPV"
             value={totalTpv}
             onChange={(e) => setTotalTpv(e.target.value)}
@@ -244,6 +236,7 @@ export default function CierrePage() {
 
           <input
             className="h-16 w-full rounded-2xl border px-4 text-2xl"
+            type="number"
             placeholder="Total tarjeta"
             value={totalCard}
             onChange={(e) => setTotalCard(e.target.value)}
@@ -251,28 +244,31 @@ export default function CierrePage() {
 
           <input
             className="h-16 w-full rounded-2xl border px-4 text-2xl"
-            placeholder="Retiradas"
+            type="number"
+            placeholder="Retiradas de efectivo"
             value={withdrawalsAmount}
             onChange={(e) => setWithdrawalsAmount(e.target.value)}
           />
 
           <input
             className="h-16 w-full rounded-2xl border px-4 text-2xl"
-            placeholder="Pico"
+            type="number"
+            placeholder="Pico (Fondo de caja)"
             value={peakAmount}
             onChange={(e) => setPeakAmount(e.target.value)}
           />
 
           <input
             className="h-16 w-full rounded-2xl border px-4 text-2xl"
-            placeholder="Efectivo contado"
+            type="number"
+            placeholder="Efectivo contado real"
             value={countedCash}
             onChange={(e) => setCountedCash(e.target.value)}
           />
 
           <textarea
             className="w-full rounded-2xl border px-4 py-4 text-2xl"
-            placeholder="Observaciones"
+            placeholder="Observaciones..."
             value={notes}
             onChange={(e) => setNotes(e.target.value)}
           />
@@ -280,17 +276,16 @@ export default function CierrePage() {
           <button
             onClick={handleSave}
             disabled={loading}
-            className="h-16 w-full rounded-2xl bg-black text-2xl font-black text-white"
+            className="h-16 w-full rounded-2xl bg-black text-2xl font-black text-white hover:bg-neutral-800 transition-colors disabled:bg-neutral-400"
           >
             {loading ? "Guardando..." : "Guardar cierre"}
           </button>
 
           {msg && (
-            <p className={`text-lg font-bold ${msgType === "success" ? "text-green-600" : "text-red-600"}`}>
+            <div className={`p-4 rounded-xl text-center text-lg font-bold ${msgType === "success" ? "bg-green-100 text-green-600" : "bg-red-100 text-red-600"}`}>
               {msg}
-            </p>
+            </div>
           )}
-
         </div>
       </div>
     </main>
