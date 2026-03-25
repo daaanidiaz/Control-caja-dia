@@ -68,7 +68,6 @@ export default function CierrePage() {
     }
   };
 
-  // Conversión de strings a números para cálculos
   const nRegisterNumber = Number(registerNumber || 0);
   const nTotalTpv = Number(totalTpv || 0);
   const nTotalCard = Number(totalCard || 0);
@@ -76,24 +75,17 @@ export default function CierrePage() {
   const nPeakAmount = Number(peakAmount || 0);
   const nCountedCash = Number(countedCash || 0);
 
-  // --- LÓGICA DE CÁLCULO CORREGIDA ---
-  
-  // 1. Efectivo neto que ha entrado (Ventas totales menos lo pagado con tarjeta)
   const cashSales = useMemo(() => {
     return nTotalTpv - nTotalCard;
   }, [nTotalTpv, nTotalCard]);
 
-  // 2. Lo que DEBERÍA haber en el cajón (Ventas en efectivo menos lo que ya se ha retirado)
   const expectedCash = useMemo(() => {
     return cashSales - nWithdrawalsAmount;
   }, [cashSales, nWithdrawalsAmount]);
 
-  // 3. Diferencia: Lo que he contado físicamente menos lo que el sistema dice que hay
   const differenceAmount = useMemo(() => {
     return nCountedCash - expectedCash;
   }, [nCountedCash, expectedCash]);
-
-  // ----------------------------------
 
   const resetForm = () => {
     if (registers.length > 0) {
@@ -118,14 +110,13 @@ export default function CierrePage() {
       return;
     }
 
-    // Validaciones básicas
     const fields = [
       { val: registerNumber, name: "caja" },
       { val: totalTpv, name: "total TPV" },
       { val: totalCard, name: "total tarjeta" },
       { val: withdrawalsAmount, name: "retiradas" },
       { val: peakAmount, name: "pico" },
-      { val: countedCash, name: "efectivo contado" }
+      { val: countedCash, name: "efectivo contado" },
     ];
 
     for (const field of fields) {
@@ -138,33 +129,30 @@ export default function CierrePage() {
 
     setLoading(true);
 
-    // Si la diferencia es menor a 1 céntimo, lo damos por bueno (evita errores de coma flotante)
     const status = Math.abs(differenceAmount) < 0.01 ? "ok" : "alert";
 
-    const { error } = await supabase
-      .from("daily_closings")
-      .insert([
-        {
-          closing_date: today,
-          store_id: user.store_id,
-          user_id: user.id,
-          register_number: nRegisterNumber,
-          opening_cash: 0,
-          cash_sales: cashSales,
-          card_sales: nTotalCard,
-          returns_amount: 0,
-          expenses_amount: 0,
-          withdrawals_amount: nWithdrawalsAmount,
-          expected_cash: expectedCash,
-          counted_cash: nCountedCash,
-          difference_amount: differenceAmount,
-          total_tpv: nTotalTpv,
-          total_card: nTotalCard,
-          peak_amount: nPeakAmount,
-          notes: notes.trim() || null,
-          status,
-        },
-      ]);
+    const { error } = await supabase.from("daily_closings").insert([
+      {
+        closing_date: today,
+        store_id: user.store_id,
+        user_id: user.id,
+        register_number: nRegisterNumber,
+        opening_cash: 0,
+        cash_sales: cashSales,
+        card_sales: nTotalCard,
+        returns_amount: 0,
+        expenses_amount: 0,
+        withdrawals_amount: nWithdrawalsAmount,
+        expected_cash: expectedCash,
+        counted_cash: nCountedCash,
+        difference_amount: differenceAmount,
+        total_tpv: nTotalTpv,
+        total_card: nTotalCard,
+        peak_amount: nPeakAmount,
+        notes: notes.trim() || null,
+        status,
+      },
+    ]);
 
     if (error) {
       setLoading(false);
@@ -190,28 +178,6 @@ export default function CierrePage() {
   return (
     <main className="min-h-screen bg-neutral-100 p-6">
       <div className="mx-auto max-w-4xl space-y-6">
-
-        {/* Bloque de visualización de cálculos en tiempo real */}
-        <div className="rounded-3xl bg-red-200 p-6 shadow">
-          <h1 className="text-4xl font-black">RESUMEN DE CAJA</h1>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-4">
-            <div>
-              <p className="text-sm uppercase font-bold text-red-800">Efectivo Ventas</p>
-              <p className="text-2xl font-black">{cashSales.toFixed(2)} €</p>
-            </div>
-            <div>
-              <p className="text-sm uppercase font-bold text-red-800">Debería haber (Esperado)</p>
-              <p className="text-2xl font-black">{expectedCash.toFixed(2)} €</p>
-            </div>
-            <div>
-              <p className="text-sm uppercase font-bold text-red-800">Diferencia Final</p>
-              <p className={`text-2xl font-black ${differenceAmount < 0 ? 'text-red-600' : 'text-green-700'}`}>
-                {differenceAmount.toFixed(2)} €
-              </p>
-            </div>
-          </div>
-        </div>
-
         <div className="rounded-3xl bg-white p-6 shadow space-y-4">
           <label className="block text-sm font-bold ml-1">Seleccionar Caja</label>
           <select
@@ -282,7 +248,13 @@ export default function CierrePage() {
           </button>
 
           {msg && (
-            <div className={`p-4 rounded-xl text-center text-lg font-bold ${msgType === "success" ? "bg-green-100 text-green-600" : "bg-red-100 text-red-600"}`}>
+            <div
+              className={`p-4 rounded-xl text-center text-lg font-bold ${
+                msgType === "success"
+                  ? "bg-green-100 text-green-600"
+                  : "bg-red-100 text-red-600"
+              }`}
+            >
               {msg}
             </div>
           )}
