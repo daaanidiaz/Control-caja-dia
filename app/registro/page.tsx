@@ -28,7 +28,7 @@ export default function RegistroPage() {
   const [mainType, setMainType] = useState<MainType>("withdrawal");
   const [incidentType, setIncidentType] =
     useState<IncidentType>("refund_cancel");
-  const [registerNumber, setRegisterNumber] = useState("");
+  const [registerNumber, setRegisterNumber] = useState("99");
   const [amount, setAmount] = useState("");
   const [comment, setComment] = useState("");
   const [envelopeNumber, setEnvelopeNumber] = useState("");
@@ -65,10 +65,6 @@ export default function RegistroPage() {
 
     if (data) {
       setRegisters(data);
-
-      if (data.length > 0) {
-        setRegisterNumber(String(data[0].register_number));
-      }
     }
   };
 
@@ -76,16 +72,30 @@ export default function RegistroPage() {
     return mainType === "withdrawal" ? "Retirada" : "Incidencia";
   }, [mainType]);
 
+  const handleChangeMainType = (type: MainType) => {
+    setMainType(type);
+    setMsg("");
+    setMsgType("");
+
+    if (type === "withdrawal") {
+      setRegisterNumber("99");
+    } else {
+      if (registers.length > 0) {
+        setRegisterNumber(String(registers[0].register_number));
+      } else {
+        setRegisterNumber("");
+      }
+    }
+
+    setEnvelopeNumber("");
+    setAttachmentPhoto(null);
+    setFileInputKey((prev) => prev + 1);
+  };
+
   const resetForm = () => {
     setMainType("withdrawal");
     setIncidentType("refund_cancel");
-
-    if (registers.length > 0) {
-      setRegisterNumber(String(registers[0].register_number));
-    } else {
-      setRegisterNumber("");
-    }
-
+    setRegisterNumber("99");
     setAmount("");
     setComment("");
     setEnvelopeNumber("");
@@ -182,7 +192,8 @@ export default function RegistroPage() {
         employee_name: user.full_name,
         amount: parsedAmount,
         reason: comment.trim() || null,
-        envelope_number: mainType === "withdrawal" ? envelopeNumber.trim() : null,
+        envelope_number:
+          mainType === "withdrawal" ? envelopeNumber.trim() : null,
         envelope_photo_url: uploadedPhotoUrl,
       },
     ]);
@@ -252,7 +263,7 @@ export default function RegistroPage() {
           <div className="grid gap-4 md:grid-cols-2">
             <button
               type="button"
-              onClick={() => setMainType("withdrawal")}
+              onClick={() => handleChangeMainType("withdrawal")}
               className={`h-20 rounded-2xl border text-2xl font-black ${
                 mainType === "withdrawal"
                   ? "border-black bg-black text-white"
@@ -264,7 +275,7 @@ export default function RegistroPage() {
 
             <button
               type="button"
-              onClick={() => setMainType("incident")}
+              onClick={() => handleChangeMainType("incident")}
               className={`h-20 rounded-2xl border text-2xl font-black ${
                 mainType === "incident"
                   ? "border-black bg-black text-white"
@@ -293,6 +304,10 @@ export default function RegistroPage() {
             value={registerNumber}
             onChange={(e) => setRegisterNumber(e.target.value)}
           >
+            {mainType === "withdrawal" ? (
+              <option value="99">Retirada manual</option>
+            ) : null}
+
             {registers.map((register) => (
               <option key={register.id} value={register.register_number}>
                 Caja {register.register_number}
@@ -318,7 +333,9 @@ export default function RegistroPage() {
 
           <div className="rounded-2xl border border-neutral-300 bg-white p-4">
             <label className="mb-2 block text-xl font-bold text-neutral-800">
-              {mainType === "withdrawal" ? "Foto del sobre" : "Foto de la incidencia"}
+              {mainType === "withdrawal"
+                ? "Foto del sobre"
+                : "Foto de la incidencia"}
             </label>
             <input
               key={fileInputKey}
