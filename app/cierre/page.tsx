@@ -27,6 +27,7 @@ type ExistingClosingRow = {
   total_tpv?: number;
   total_card?: number;
   withdrawals_amount?: number;
+  virtual_sales?: number;
   peak_amount?: number;
   counted_cash?: number;
   notes?: string | null;
@@ -42,6 +43,7 @@ export default function CierrePage() {
   const [totalTpv, setTotalTpv] = useState("");
   const [totalCard, setTotalCard] = useState("");
   const [withdrawalsAmount, setWithdrawalsAmount] = useState("");
+  const [virtualSales, setVirtualSales] = useState("");
   const [peakAmount, setPeakAmount] = useState("");
   const [countedCash, setCountedCash] = useState("");
   const [notes, setNotes] = useState("");
@@ -49,7 +51,8 @@ export default function CierrePage() {
   const [msg, setMsg] = useState("");
   const [msgType, setMsgType] = useState<"success" | "error" | "">("");
   const [loading, setLoading] = useState(false);
-  const [existingClosing, setExistingClosing] = useState<ExistingClosingRow | null>(null);
+  const [existingClosing, setExistingClosing] =
+    useState<ExistingClosingRow | null>(null);
 
   useEffect(() => {
     const savedUser = localStorage.getItem("ccdia_user");
@@ -82,6 +85,7 @@ export default function CierrePage() {
 
     if (!error && data) {
       setRegisters(data);
+
       if (data.length > 0) {
         setRegisterNumber(String(data[0].register_number));
       }
@@ -96,7 +100,7 @@ export default function CierrePage() {
     const { data } = await supabase
       .from("daily_closings")
       .select(
-        "id, edit_count, store_id, register_number, closing_date, total_tpv, total_card, withdrawals_amount, peak_amount, counted_cash, notes"
+        "id, edit_count, store_id, register_number, closing_date, total_tpv, total_card, withdrawals_amount, virtual_sales, peak_amount, counted_cash, notes"
       )
       .eq("store_id", storeId)
       .eq("register_number", registerNum)
@@ -109,6 +113,7 @@ export default function CierrePage() {
       setTotalTpv(String(data.total_tpv ?? ""));
       setTotalCard(String(data.total_card ?? ""));
       setWithdrawalsAmount(String(data.withdrawals_amount ?? ""));
+      setVirtualSales(String(data.virtual_sales ?? ""));
       setPeakAmount(String(data.peak_amount ?? ""));
       setCountedCash(String(data.counted_cash ?? ""));
       setNotes(data.notes ?? "");
@@ -116,6 +121,7 @@ export default function CierrePage() {
       setTotalTpv("");
       setTotalCard("");
       setWithdrawalsAmount("");
+      setVirtualSales("");
       setPeakAmount("");
       setCountedCash("");
       setNotes("");
@@ -126,12 +132,13 @@ export default function CierrePage() {
   const nTotalTpv = Number(totalTpv || 0);
   const nTotalCard = Number(totalCard || 0);
   const nWithdrawalsAmount = Number(withdrawalsAmount || 0);
+  const nVirtualSales = Number(virtualSales || 0);
   const nPeakAmount = Number(peakAmount || 0);
   const nCountedCash = Number(countedCash || 0);
 
   const cashSales = useMemo(() => {
-    return nTotalTpv - nTotalCard;
-  }, [nTotalTpv, nTotalCard]);
+    return nTotalTpv - nTotalCard + nVirtualSales;
+  }, [nTotalTpv, nTotalCard, nVirtualSales]);
 
   const expectedCash = useMemo(() => {
     return cashSales - nWithdrawalsAmount;
@@ -145,6 +152,7 @@ export default function CierrePage() {
     setTotalTpv("");
     setTotalCard("");
     setWithdrawalsAmount("");
+    setVirtualSales("");
     setPeakAmount("");
     setCountedCash("");
     setNotes("");
@@ -156,6 +164,7 @@ export default function CierrePage() {
       { val: totalTpv, name: "total TPV" },
       { val: totalCard, name: "total tarjeta" },
       { val: withdrawalsAmount, name: "retiradas" },
+      { val: virtualSales, name: "venta virtual" },
       { val: peakAmount, name: "pico" },
       { val: countedCash, name: "efectivo contado" },
     ];
@@ -166,6 +175,18 @@ export default function CierrePage() {
         setMsgType("error");
         return false;
       }
+    }
+
+    if (Number.isNaN(nVirtualSales)) {
+      setMsg("La venta virtual no es válida");
+      setMsgType("error");
+      return false;
+    }
+
+    if (nVirtualSales > 0) {
+      setMsg("La venta virtual tiene que ser negativa. Ejemplo: -50");
+      setMsgType("error");
+      return false;
     }
 
     return true;
@@ -202,6 +223,7 @@ export default function CierrePage() {
           returns_amount: 0,
           expenses_amount: 0,
           withdrawals_amount: nWithdrawalsAmount,
+          virtual_sales: nVirtualSales,
           expected_cash: expectedCash,
           counted_cash: nCountedCash,
           difference_amount: differenceAmount,
@@ -222,7 +244,7 @@ export default function CierrePage() {
       }
 
       setLoading(false);
-      setMsg("Cierre guardado correctamente");
+      setMsg("Cierre guardado correctamente. Si te has equivocado, puedes modificarlo una sola vez.");
       setMsgType("success");
       clearForm();
       await checkExistingClosing(user.store_id!, nRegisterNumber, today);
@@ -242,6 +264,7 @@ export default function CierrePage() {
         cash_sales: cashSales,
         card_sales: nTotalCard,
         withdrawals_amount: nWithdrawalsAmount,
+        virtual_sales: nVirtualSales,
         expected_cash: expectedCash,
         counted_cash: nCountedCash,
         difference_amount: differenceAmount,
@@ -282,6 +305,7 @@ export default function CierrePage() {
       <div className="mx-auto max-w-4xl space-y-6">
         <div className="rounded-3xl bg-white p-6 shadow space-y-4">
           <label className="block text-sm font-bold ml-1">Seleccionar Caja</label>
+
           <select
             className="h-16 w-full rounded-2xl border px-4 text-2xl"
             value={registerNumber}
@@ -297,7 +321,7 @@ export default function CierrePage() {
           {existingClosing ? (
             <div className="rounded-xl bg-yellow-100 p-4 text-lg font-bold text-yellow-800">
               {existingClosing.edit_count === 0
-                ? "Cierre guardado con éxito. Puedes corregirlo una sola vez."
+                ? "Cierre guardado correctamente. Si te has equivocado, puedes modificarlo una sola vez."
                 : "Este cierre ya fue corregido una vez. No se puede volver a modificar."}
             </div>
           ) : null}
@@ -324,6 +348,14 @@ export default function CierrePage() {
             placeholder="Retiradas de efectivo"
             value={withdrawalsAmount}
             onChange={(e) => setWithdrawalsAmount(e.target.value)}
+          />
+
+          <input
+            className="h-16 w-full rounded-2xl border px-4 text-2xl"
+            type="number"
+            placeholder="Venta virtual (-)"
+            value={virtualSales}
+            onChange={(e) => setVirtualSales(e.target.value)}
           />
 
           <input
