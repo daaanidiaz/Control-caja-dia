@@ -32,7 +32,7 @@ export default function RegistroPage() {
   const [amount, setAmount] = useState("");
   const [comment, setComment] = useState("");
   const [envelopeNumber, setEnvelopeNumber] = useState("");
-  const [envelopePhoto, setEnvelopePhoto] = useState<File | null>(null);
+  const [attachmentPhoto, setAttachmentPhoto] = useState<File | null>(null);
 
   const [msg, setMsg] = useState("");
   const [msgType, setMsgType] = useState<"success" | "error" | "">("");
@@ -79,21 +79,23 @@ export default function RegistroPage() {
   const resetForm = () => {
     setMainType("withdrawal");
     setIncidentType("refund_cancel");
+
     if (registers.length > 0) {
       setRegisterNumber(String(registers[0].register_number));
     } else {
       setRegisterNumber("");
     }
+
     setAmount("");
     setComment("");
     setEnvelopeNumber("");
-    setEnvelopePhoto(null);
+    setAttachmentPhoto(null);
     setFileInputKey((prev) => prev + 1);
   };
 
   const handleFileChange = (e: ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0] ?? null;
-    setEnvelopePhoto(file);
+    setAttachmentPhoto(file);
   };
 
   const handleSave = async () => {
@@ -145,16 +147,16 @@ export default function RegistroPage() {
 
     let uploadedPhotoUrl: string | null = null;
 
-    if (mainType === "withdrawal" && envelopePhoto) {
-      const extension = envelopePhoto.name.split(".").pop() || "jpg";
+    if (attachmentPhoto) {
+      const extension = attachmentPhoto.name.split(".").pop() || "jpg";
       const safeName = `${Date.now()}-${Math.random()
         .toString(36)
         .slice(2)}.${extension}`;
-      const filePath = `store-${user.store_id}/${safeName}`;
+      const filePath = `store-${user.store_id}/${mainType}/${safeName}`;
 
       const { error: uploadError } = await supabase.storage
         .from("quick-records")
-        .upload(filePath, envelopePhoto);
+        .upload(filePath, attachmentPhoto);
 
       if (uploadError) {
         setLoading(false);
@@ -181,8 +183,7 @@ export default function RegistroPage() {
         amount: parsedAmount,
         reason: comment.trim() || null,
         envelope_number: mainType === "withdrawal" ? envelopeNumber.trim() : null,
-        envelope_photo_url:
-          mainType === "withdrawal" ? uploadedPhotoUrl : null,
+        envelope_photo_url: uploadedPhotoUrl,
       },
     ]);
 
@@ -293,10 +294,7 @@ export default function RegistroPage() {
             onChange={(e) => setRegisterNumber(e.target.value)}
           >
             {registers.map((register) => (
-              <option
-                key={register.id}
-                value={register.register_number}
-              >
+              <option key={register.id} value={register.register_number}>
                 Caja {register.register_number}
               </option>
             ))}
@@ -310,31 +308,31 @@ export default function RegistroPage() {
           />
 
           {mainType === "withdrawal" ? (
-            <>
-              <input
-                className="h-16 w-full rounded-2xl border border-neutral-300 px-4 text-2xl outline-none"
-                placeholder="Nº de sobre"
-                value={envelopeNumber}
-                onChange={(e) => setEnvelopeNumber(e.target.value)}
-              />
-
-              <div className="rounded-2xl border border-neutral-300 bg-white p-4">
-                <label className="mb-2 block text-xl font-bold text-neutral-800">
-                  Foto del sobre
-                </label>
-                <input
-                  key={fileInputKey}
-                  type="file"
-                  accept="image/*"
-                  onChange={handleFileChange}
-                  className="block w-full text-lg"
-                />
-                <p className="mt-2 text-base text-neutral-600">
-                  Puedes guardar la retirada sin foto, pero la opción está disponible.
-                </p>
-              </div>
-            </>
+            <input
+              className="h-16 w-full rounded-2xl border border-neutral-300 px-4 text-2xl outline-none"
+              placeholder="Nº de sobre"
+              value={envelopeNumber}
+              onChange={(e) => setEnvelopeNumber(e.target.value)}
+            />
           ) : null}
+
+          <div className="rounded-2xl border border-neutral-300 bg-white p-4">
+            <label className="mb-2 block text-xl font-bold text-neutral-800">
+              {mainType === "withdrawal" ? "Foto del sobre" : "Foto de la incidencia"}
+            </label>
+            <input
+              key={fileInputKey}
+              type="file"
+              accept="image/*"
+              onChange={handleFileChange}
+              className="block w-full text-lg"
+            />
+            <p className="mt-2 text-base text-neutral-600">
+              {mainType === "withdrawal"
+                ? "Puedes guardar la retirada sin foto, pero la opción está disponible."
+                : "Puedes guardar la incidencia sin foto, pero la opción está disponible."}
+            </p>
+          </div>
 
           <input
             className="h-16 w-full rounded-2xl border border-neutral-300 px-4 text-2xl outline-none"
