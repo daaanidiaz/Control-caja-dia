@@ -40,7 +40,7 @@ type QuickRecordRow = {
   store_id: number;
   type: "withdrawal" | "incident";
   incident_type: "refund_cancel" | "abandon_cancel" | null;
-  register_number: number;
+  register_number: number | null;
   employee_name: string;
   amount: number;
   reason: string | null;
@@ -155,6 +155,10 @@ export default function PanelPage() {
     return "Incidencia";
   };
 
+  const getRegisterLabel = (registerNumber: number | null) => {
+    return registerNumber ? `Caja ${registerNumber}` : "Retirada manual";
+  };
+
   const getLiveDifference = (closing: ClosingRow) => {
     const totalTpv = Number(closing.total_tpv ?? 0);
     const totalCard = Number(closing.total_card ?? 0);
@@ -236,7 +240,9 @@ export default function PanelPage() {
           store_id: closing.store_id,
           register_number: closing.register_number,
           level,
-          message: `Descuadre de ${liveDifference.toFixed(2)} € en cierre del ${closing.closing_date} · caja ${closing.register_number ?? "-"}`,
+          message: `Descuadre de ${liveDifference.toFixed(2)} € en cierre del ${
+            closing.closing_date
+          } · ${getRegisterLabel(closing.register_number)}`,
         } as LiveAlertRow;
       })
       .filter(Boolean) as LiveAlertRow[];
@@ -454,7 +460,7 @@ export default function PanelPage() {
                         {getStoreName(c.store_id)}
                       </td>
                       <td className="p-3 whitespace-nowrap">
-                        {c.register_number ?? "-"}
+                        {getRegisterLabel(c.register_number)}
                       </td>
                       <td className="p-3 whitespace-nowrap">
                         {Number(c.total_tpv ?? 0).toFixed(2)} €
@@ -490,7 +496,9 @@ export default function PanelPage() {
                         {(c.edit_count ?? 0) > 0 ? "Sí" : "No"}
                       </td>
                       <td className="p-3 whitespace-nowrap">
-                        {c.last_edited_at ? formatDateTime(c.last_edited_at) : "-"}
+                        {c.last_edited_at
+                          ? formatDateTime(c.last_edited_at)
+                          : "-"}
                       </td>
                     </tr>
                   );
@@ -535,7 +543,7 @@ export default function PanelPage() {
                       {getQuickRecordTypeLabel(record)}
                     </td>
                     <td className="p-3 whitespace-nowrap">
-                      {record.register_number}
+                      {getRegisterLabel(record.register_number)}
                     </td>
                     <td className="p-3 whitespace-nowrap">
                       {record.employee_name}
