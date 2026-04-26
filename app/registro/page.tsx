@@ -26,9 +26,8 @@ export default function RegistroPage() {
   const [registers, setRegisters] = useState<StoreRegisterRow[]>([]);
 
   const [mainType, setMainType] = useState<MainType>("withdrawal");
-  const [incidentType, setIncidentType] =
-    useState<IncidentType>("refund_cancel");
-  const [registerNumber, setRegisterNumber] = useState("99");
+  const [incidentType, setIncidentType] = useState<IncidentType>("refund_cancel");
+  const [registerNumber, setRegisterNumber] = useState("manual");
   const [amount, setAmount] = useState("");
   const [comment, setComment] = useState("");
   const [envelopeNumber, setEnvelopeNumber] = useState("");
@@ -78,7 +77,7 @@ export default function RegistroPage() {
     setMsgType("");
 
     if (type === "withdrawal") {
-      setRegisterNumber("99");
+      setRegisterNumber("manual");
     } else {
       if (registers.length > 0) {
         setRegisterNumber(String(registers[0].register_number));
@@ -95,7 +94,7 @@ export default function RegistroPage() {
   const resetForm = () => {
     setMainType("withdrawal");
     setIncidentType("refund_cancel");
-    setRegisterNumber("99");
+    setRegisterNumber("manual");
     setAmount("");
     setComment("");
     setEnvelopeNumber("");
@@ -132,13 +131,25 @@ export default function RegistroPage() {
       return;
     }
 
-    const parsedRegisterNumber = Number(registerNumber);
+    const isManualWithdrawal =
+      mainType === "withdrawal" && registerNumber === "manual";
+
+    const parsedRegisterNumber = isManualWithdrawal
+      ? null
+      : Number(registerNumber);
+
     const parsedAmount = Number(amount);
 
-    if (Number.isNaN(parsedRegisterNumber) || parsedRegisterNumber <= 0) {
-      setMsg("La caja debe ser válida");
-      setMsgType("error");
-      return;
+    if (!isManualWithdrawal) {
+      if (
+        parsedRegisterNumber === null ||
+        Number.isNaN(parsedRegisterNumber) ||
+        parsedRegisterNumber <= 0
+      ) {
+        setMsg("La caja debe ser válida");
+        setMsgType("error");
+        return;
+      }
     }
 
     if (Number.isNaN(parsedAmount) || parsedAmount <= 0) {
@@ -205,7 +216,7 @@ export default function RegistroPage() {
         error.message.includes("duplicate key") ||
         error.message.includes("quick_records_unique_store_envelope_withdrawal")
       ) {
-        setMsg("Ese número de sobre ya existe en esta tienda");
+        setMsg("Ese número de sobre ya existe en esta tienda y caja");
         setMsgType("error");
         return;
       }
@@ -305,7 +316,7 @@ export default function RegistroPage() {
             onChange={(e) => setRegisterNumber(e.target.value)}
           >
             {mainType === "withdrawal" ? (
-              <option value="99">Retirada manual</option>
+              <option value="manual">Retirada manual</option>
             ) : null}
 
             {registers.map((register) => (
